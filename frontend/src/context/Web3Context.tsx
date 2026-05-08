@@ -27,6 +27,7 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
   const [balance, setBalance] = useState<string | null>(null)
   const [provider, setProvider] = useState<BrowserProvider | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isExplicitlyDisconnected, setIsExplicitlyDisconnected] = useState(false)
 
   // Update balance when account changes
   const updateBalance = useCallback(async (address: string, providerInstance: BrowserProvider) => {
@@ -42,6 +43,13 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
   const handleAccountsChanged = useCallback(
     (accounts: string[]) => {
       console.log('🔄 MetaMask accounts changed event fired:', accounts)
+      
+      // Skip auto-reconnect if user explicitly disconnected
+      if (isExplicitlyDisconnected) {
+        console.log('⏭️  User explicitly disconnected - skipping auto-reconnect')
+        return
+      }
+      
       if (accounts.length === 0) {
         // User disconnected from MetaMask
         console.log('🔌 User disconnected from MetaMask')
@@ -54,7 +62,7 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
         // Update balance will happen via useEffect watching account changes
       }
     },
-    []
+    [isExplicitlyDisconnected]
   )
 
   // Set up listeners when MetaMask is available
@@ -83,6 +91,7 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const connectWallet = useCallback(async (): Promise<string> => {
     setIsLoading(true)
+    setIsExplicitlyDisconnected(false) // Clear explicit disconnect flag when connecting
     try {
       if (!window.ethereum) {
         throw new Error('MetaMask not installed')
@@ -127,10 +136,8 @@ export const Web3Provider: React.FC<{ children: React.ReactNode }> = ({ children
     setAccount(null)
     setBalance(null)
     setProvider(null)
-    // Note: To fully disconnect from MetaMask, you might also need to:
-    // 1. Disconnect in MetaMask extension settings
-    // 2. Or the user can manually select a different account next time
-    console.log('⚠️  App disconnected. To connect with a different account, make sure MetaMask is set to that account before clicking "Connect MetaMask"')
+    setIsExplicitlyDisconnected(true) // Set flag to prevent auto-reconnect
+    console.log('✅ Wallet disconnected - auto-reconnect disabled until user reconnects')
   }, [])
 
   const getAvailableAccounts = useCallback(async (): Promise<string[]> => {

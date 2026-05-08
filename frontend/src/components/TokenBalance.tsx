@@ -31,7 +31,7 @@ export const TokenBalance: React.FC = () => {
         setTotalBalance(total)
         setReservedBalance(reserved)
         const available = String(Number(total) - Number(reserved))
-        console.log(`💰 Token balance: ${total} kWh | Locked: ${reserved} kWh | Available: ${available} kWh`)
+        console.log(`💰 Token balance: ${total} NRG | Locked: ${reserved} NRG | Available: ${available} NRG`)
       } catch (error) {
         console.error('Failed to fetch token balance:', error)
         setTotalBalance('0')
@@ -58,21 +58,21 @@ export const TokenBalance: React.FC = () => {
           {isLoading ? (
             <span className="text-xs font-bold text-purple-600">⏳ Loading...</span>
           ) : totalBalance === '0' ? (
-            <span className="text-xs font-bold text-red-600">0 kWh</span>
+            <span className="text-xs font-bold text-red-600">0 NRG</span>
           ) : (
-            <span className="text-xs font-bold text-purple-600">{totalBalance} kWh</span>
+            <span className="text-xs font-bold text-purple-600">{totalBalance} NRG</span>
           )}
         </div>
         {Number(reservedBalance) > 0 && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-600">🔒 Locked:</span>
-            <span className="text-xs font-bold text-orange-600">{reservedBalance} kWh</span>
+            <span className="text-xs font-bold text-orange-600">{reservedBalance} NRG</span>
           </div>
         )}
         {Number(reservedBalance) > 0 && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-600">✅ Available:</span>
-            <span className="text-xs font-bold text-green-600">{availableBalance} kWh</span>
+            <span className="text-xs font-bold text-green-600">{availableBalance} NRG</span>
           </div>
         )}
       </div>

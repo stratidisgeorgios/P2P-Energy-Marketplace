@@ -111,7 +111,7 @@ export const CertificateCard: React.FC<CertificateCardProps> = ({
           <div className="bg-white rounded p-3 border border-amber-200">
             <p className="text-xs text-gray-600 uppercase tracking-wide font-semibold">⚡ Energy Amount</p>
             <p className="text-lg font-bold text-amber-900 mt-1">
-              {cert.amount} kWh
+              {cert.amount} NRG
             </p>
           </div>
         </div>

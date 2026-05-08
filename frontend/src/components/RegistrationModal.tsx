@@ -35,9 +35,16 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
       role = userRole
 
       console.log(`🔗 Registering user: ${username} as ${role}...`)
-      const txHash = await BlockchainService.registerUser(username, role)
-      console.log(`✅ User registered! Tx: ${txHash}`)
-      alert(`✅ Successfully registered as ${role}!\n\nTx: ${txHash}`)
+      const result = await BlockchainService.registerUser(username, role)
+      console.log(`✅ User registered! Tx: ${result.txHash}`)
+      
+      if (role === 'CONSUMER' && result.meterId) {
+        alert(`✅ Successfully registered as ${role}!\n\n📊 Smart Meter Created:\n${result.meterId}\n\nTx: ${result.txHash}\n\nYour meter is now listening for energy readings from MQTT!`)
+      } else if (role === 'CONSUMER') {
+        alert(`✅ Successfully registered as ${role}!\n\n🔔 Note: Smart meter was created (check console for details)\n\nTx: ${result.txHash}`)
+      } else {
+        alert(`✅ Successfully registered as ${role}!\n\nTx: ${result.txHash}`)
+      }
       
       setUsername('')
       setUserRole('PRODUCER')

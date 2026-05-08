@@ -10,6 +10,7 @@ A blockchain-based peer-to-peer energy trading platform built with Solidity smar
 
 - [Quick Start](#-quick-start)
 - [System Architecture](#-system-architecture)
+- [Automatic Oracle (MQTT)](#-automatic-oracle-mqtt)
 - [User Roles & Actions](#-user-roles--actions)
 - [Deployment Instructions](#-deployment-instructions)
 - [Frontend Setup & Running](#-frontend-setup--running)
@@ -33,7 +34,7 @@ A blockchain-based peer-to-peer energy trading platform built with Solidity smar
 npm install
 
 # Configure deployment (see Deployment Instructions section)
-# Edit .env file with your private key
+# Edit .env file with your private key and RPC URL
 
 # Deploy to Sepolia
 npm run deploy:sepolia
@@ -41,7 +42,26 @@ npm run deploy:sepolia
 # Note: Save the contract addresses from the output!
 ```
 
-### 2. Run Frontend
+### 2. Start the MQTT Broker
+
+```bash
+# Requires Docker
+npm run mqtt:broker
+```
+
+### 3. Start the Oracle & Meter Services
+
+Open two separate terminals:
+
+```bash
+# Terminal A — Oracle service (reads MQTT, settles trades on-chain)
+npm run oracle:sepolia
+
+# Terminal B — Consumer meter service (simulates energy delivery via MQTT)
+npm run meter:consumer
+```
+
+### 4. Run Frontend
 
 ```bash
 cd frontend
@@ -54,6 +74,8 @@ npm run dev
 ---
 
 ## 🏗️ System Architecture
+
+> **Full Stack:** Smart contracts on Sepolia + React frontend + MQTT broker + Oracle service + Consumer meter service
 
 ### Smart Contracts (Solidity 0.8.20)
 
@@ -96,6 +118,59 @@ EscrowSettlement.sol (Payment Escrow)
 - `Web3Context` - Wallet connection and blockchain provider
 - `RefreshContext` - Global signal to refresh balances after transactions
 - `NotificationProvider` - Notification system (extensible)
+
+### Off-Chain Services
+
+| Service | File | Role |
+|---|---|---|
+| Mosquitto MQTT Broker | `docker/docker-compose.yml` | Message bus (port 1883) |
+| Oracle Service | `oracle/oracle-service-sepolia.js` | Settles trades automatically |
+| Consumer Meter Service | `mqtt/consumer-meter-service.js` | Simulates IoT smart meters |
+
+---
+
+## ⚡ Automatic Oracle (MQTT)
+
+Trades settle **automatically** — no manual Oracle Dashboard interaction needed. Here is how:
+
+```
+Consumer accepts offer
+        │
+        └─► OfferAccepted event on Sepolia
+                │
+                ├─► Oracle Service adds trade to internal pending map
+                │
+                └─► Consumer Meter Service
+                      waits 10s (simulated delivery time)
+                      publishes MQTT message:
+                        topic:   meters/consumer_0xABC.../energy
+                        payload: { currentReading: "150" }
+                │
+                ▼
+        Oracle Service receives MQTT reading
+          ✓ delivered (150 kWh) >= threshold (142.5 kWh)
+          → confirmDelivery() on-chain
+              transfers 150 NRG tokens: producer → consumer
+              unreserves producer's locked tokens
+          → settleTrade() on-chain
+              releases escrowed ETH to producer
+                │
+                ▼
+        Trade status: COMPLETED ✓
+```
+
+**Backlog recovery:** Trades accepted while the services were offline are detected on next startup and settled automatically (typically within seconds).
+
+### Environment Variables for Oracle/Meter Services
+
+Add these to your root `.env` (alongside your existing deployment vars):
+
+```bash
+# .env
+RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY   # Sepolia RPC endpoint
+MQTT_BROKER_URL=mqtt://localhost:1883            # Optional, this is the default
+DELIVERY_DELAY_MS=10000                          # Optional, default 10 seconds
+```
 
 ---
 
@@ -169,19 +244,17 @@ Consumers register to purchase renewable energy from producers.
 
 ### **Oracle** 🛡️ (Admin Account)
 
-The oracle (deployer) manages trade settlement and delivery confirmation.
+The oracle (deployer) manages trade settlement. Settlement is **automatic** via the MQTT oracle service — the Oracle Dashboard is available as a manual fallback.
 
-**Actions Available:**
-1. **Access Oracle Dashboard** - Secure admin interface (requires oracle private key)
-2. **Confirm Deliveries** - Verify energy was delivered
-   - Transfers energy tokens from producer to consumer
-   - Unreserves producer's locked tokens
-3. **Settle Trades** - Release payment to producer
-   - Marks trade as settled
-   - Can only settle after delivery confirmed
-4. **Cancel Trades** - Refund consumer in case of issues
-   - Only before delivery confirmation
-   - Unreserves producer tokens
+**Automatic settlement (recommended):**
+- Run `npm run oracle:sepolia` and `npm run meter:consumer`
+- Trades confirm and settle automatically after the consumer meter reading arrives
+
+**Manual fallback (Oracle Dashboard):**
+1. **Access Oracle Dashboard** - Requires account matching `VITE_ORACLE_PRIVATE_KEY`
+2. **Confirm Deliveries** - Transfers tokens, unreserves producer balance
+3. **Settle Trades** - Releases escrowed payment (after delivery confirmed)
+4. **Cancel Trades** - Refund consumer; only before delivery confirmation
 
 ---
 
@@ -370,19 +443,24 @@ User Registration
 │  (Tokens locked)         │  (Payment locked)
 │      ↓──────────────────────────┘
 │
-├─ Oracle Path
+├─ Automatic Oracle Path (via MQTT)
 │      ↓
-│  [Oracle Dashboard]
+│  OfferAccepted event emitted on-chain
 │      ↓
-│  1. Confirm Delivery
-│     └─ Transfer tokens consumer
-│        Unlock reserved tokens
+│  Consumer Meter Service detects event
+│  Waits 10s (simulated delivery)
+│  Publishes meter reading to MQTT
 │      ↓
-│  2. Settle Trade
-│     └─ Release payment to producer
-│        Generate Certificate
+│  Oracle Service receives MQTT reading
 │      ↓
-│  Both parties: View completed trade + Certificate
+│  1. confirmDelivery() on-chain
+│     └─ Transfer tokens: producer → consumer
+│        Unreserve producer tokens
+│      ↓
+│  2. settleTrade() on-chain
+│     └─ Release escrowed ETH to producer
+│      ↓
+│  Both parties: View completed trade + Certificate ✓
 ```
 
 ---
@@ -444,6 +522,25 @@ MIT License - See LICENSE file for details
 
 ### MetaMask shows "Wrong Network"
 → Switch to Sepolia network in MetaMask Settings → Networks → Add Network
+
+### Trade stuck at "AWAITING ORACLE CONFIRMATION"
+→ Make sure all three services are running:
+```bash
+npm run mqtt:broker        # Must be running first
+npm run oracle:sepolia     # Reads MQTT, settles on-chain
+npm run meter:consumer     # Publishes energy readings to MQTT
+```
+→ Trades created before the services were started are recovered automatically — just start the services and they will settle within seconds.
+
+### Oracle service shows "No pending trade found for consumer..."
+→ The trade was accepted before the oracle started. Restart `npm run meter:consumer` — it will rescan and republish readings for all stuck trades on startup.
+
+### "❌ ERROR: RPC_URL not configured" in oracle/meter service
+→ Add `RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY` to your root `.env` file
+
+### MQTT broker not reachable
+→ Ensure Docker is running and `npm run mqtt:broker` completed successfully
+→ Check that port 1883 is not blocked by a firewall
 
 ---
 

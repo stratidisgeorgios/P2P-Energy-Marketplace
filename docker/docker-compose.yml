@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: energy-mqtt-broker
+    ports:
+      - "1883:1883"  # Default MQTT port (unencrypted)
+      - "8883:8883"  # MQTT over TLS
+      - "9001:9001"  # WebSocket
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+    environment:
+      - TZ=UTC
+    networks:
+      - energy-network
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "test", "-C", "1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mosquitto_data:
+  mosquitto_logs:
+
+networks:
+  energy-network:
+    driver: bridge

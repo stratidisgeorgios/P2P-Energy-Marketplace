@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAuthContext } from '../context/AuthContext'
 import { useWeb3Context } from '../context/Web3Context'
+import { useRefresh } from '../context/RefreshContext'
 import { RegistrationModal } from './RegistrationModal'
 import BlockchainService from '../services/ContractService'
 
@@ -10,7 +11,8 @@ import BlockchainService from '../services/ContractService'
  */
 export const UserRegistration: React.FC = () => {
   const { user } = useAuthContext()
-  const { account } = useWeb3Context()
+  const { account, provider } = useWeb3Context()
+  const { refreshTrigger } = useRefresh()
   const [isRegistered, setIsRegistered] = useState<boolean | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
@@ -25,7 +27,11 @@ export const UserRegistration: React.FC = () => {
 
     const checkRegistration = async () => {
       try {
+        if (provider) {
+          await BlockchainService.setProvider(provider)
+        }
         const registered = await BlockchainService.isUserActive(account)
+        console.log(`✅ Registration check: ${account} isActive = ${registered}`)
         setIsRegistered(registered)
       } catch (error) {
         console.error('Failed to check registration status:', error)
@@ -34,7 +40,7 @@ export const UserRegistration: React.FC = () => {
     }
 
     checkRegistration()
-  }, [account])
+  }, [account, provider, refreshTrigger])
 
   const handleDeregister = async () => {
     if (!window.confirm('Are you sure you want to deregister? This action cannot be undone.')) {
@@ -66,7 +72,17 @@ export const UserRegistration: React.FC = () => {
 
   const handleRegistrationSuccess = () => {
     setShowModal(false)
-    setIsRegistered(true)
+    // Re-check registration status from blockchain after a short delay
+    setTimeout(() => {
+      if (account && provider) {
+        BlockchainService.setProvider(provider).then(() => {
+          BlockchainService.isUserActive(account).then(registered => {
+            console.log(`✅ Post-registration check: ${registered}`)
+            setIsRegistered(registered)
+          })
+        })
+      }
+    }, 1000)
   }
 
   // Don't show anything if not connected

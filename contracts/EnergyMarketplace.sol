@@ -448,6 +448,9 @@ contract EnergyMarketplace is ReentrancyGuard, AccessControl {
         );
         require(transferSuccess, "Energy transfer failed");
 
+        // Update consumer's smart meter with received energy
+        userRegistry.updateMeterReading(trade.consumer, transferAmount);
+
         emit TradeDeliveryConfirmed(_tradeId, msg.sender);
     }
 

@@ -121,8 +121,8 @@ export const Marketplace: React.FC = () => {
 
     const offerTypeStr = offer.offerType === 0 ? 'SELL' : 'BUY'
     const confirmMsg = offer.offerType === 0 
-      ? `Are you sure you want to buy ${offer.energyAmount} kWh for ${(Number(offer.totalPrice) / 1e18).toFixed(4)} ETH?`
-      : `Are you sure you want to sell ${offer.energyAmount} kWh for ${(Number(offer.totalPrice) / 1e18).toFixed(4)} ETH?`
+      ? `Are you sure you want to buy ${offer.energyAmount} NRG for ${(Number(offer.totalPrice) / 1e18).toFixed(4)} ETH?`
+      : `Are you sure you want to sell ${offer.energyAmount} NRG for ${(Number(offer.totalPrice) / 1e18).toFixed(4)} ETH?`
     
     const confirmed = window.confirm(confirmMsg)
     if (!confirmed) return
@@ -172,7 +172,7 @@ export const Marketplace: React.FC = () => {
 
     const offerTypeStr = offer.offerType === 0 ? 'SELL' : 'BUY'
     const confirmMsg = offer.offerType === 0 
-      ? `Cancel this SELL offer? You won't be able to sell this ${offer.energyAmount} kWh.`
+      ? `Cancel this SELL offer? You won't be able to sell this ${offer.energyAmount} NRG.`
       : `Cancel this BUY offer? You will get your ${(Number(offer.totalPrice) / 1e18).toFixed(4)} ETH refunded from escrow.`
     
     const confirmed = window.confirm(confirmMsg)
@@ -306,7 +306,7 @@ export const Marketplace: React.FC = () => {
                       <p className="text-2xl font-bold text-blue-600 mt-1">
                         {offer.energyAmount}
                       </p>
-                      <p className="text-gray-600 text-xs mt-1">kWh</p>
+                      <p className="text-gray-600 text-xs mt-1">NRG</p>
                     </div>
 
                     {/* Price Per Unit */}
@@ -315,7 +315,7 @@ export const Marketplace: React.FC = () => {
                       <p className="text-2xl font-bold text-yellow-600 mt-1">
                         ${BlockchainService.fromPriceWei(offer.pricePerUnit)}
                       </p>
-                      <p className="text-gray-600 text-xs mt-1">per kWh</p>
+                      <p className="text-gray-600 text-xs mt-1">per NRG</p>
                     </div>
 
                     {/* Total Price */}

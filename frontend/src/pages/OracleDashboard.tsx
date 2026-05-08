@@ -280,7 +280,7 @@ export const OracleDashboard: React.FC = () => {
                         Consumer
                       </th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                        Energy (kWh)
+                        Energy (NRG)
                       </th>
                       <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
                         Price
@@ -308,7 +308,7 @@ export const OracleDashboard: React.FC = () => {
                           </code>
                         </td>
                         <td className="px-6 py-4 font-semibold text-gray-800">
-                          {trade.energyAmount} kWh
+                          {trade.energyAmount} NRG
                         </td>
                         <td className="px-6 py-4 text-gray-800">
                           {(Number(trade.totalPrice) / 1e18).toFixed(4)} ETH

@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { Web3Provider } from './context/Web3Context'
 import { RefreshProvider } from './context/RefreshContext'
-import { NotificationProvider } from './context/NotificationContext'
 import { Header } from './components/Header'
 import { GlobalStyles } from './components/GlobalStyles'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -21,7 +20,6 @@ function App() {
       <AuthProvider>
         <Web3Provider>
           <RefreshProvider>
-            <NotificationProvider>
               <GlobalStyles />
               <Header />
               <Routes>
@@ -45,7 +43,6 @@ function App() {
                 <Route path="/oracle" element={<OracleDashboard />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
-            </NotificationProvider>
           </RefreshProvider>
         </Web3Provider>
       </AuthProvider>

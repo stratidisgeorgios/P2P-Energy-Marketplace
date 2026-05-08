@@ -12,12 +12,19 @@ import { ethers } from 'ethers'
  */
 export const Header: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuthContext()
-  const { account } = useWeb3Context()
+  const { account, disconnectWallet } = useWeb3Context()
 
   // Check if account is oracle
   const oraclePrivateKey = import.meta.env.VITE_ORACLE_PRIVATE_KEY
   const oracleWallet = oraclePrivateKey ? new ethers.Wallet(oraclePrivateKey) : null
   const isOracleAccount = account && oracleWallet && account.toLowerCase() === oracleWallet.address.toLowerCase()
+
+  // Handle logout - disconnect both auth and wallet
+  const handleLogout = () => {
+    logout()
+    disconnectWallet()
+    console.log('✅ User logged out and wallet disconnected')
+  }
 
   return (
     <header className="bg-white shadow">
@@ -48,7 +55,7 @@ export const Header: React.FC = () => {
               <TokenBalance />
               <UserRegistration />
               <button
-                onClick={logout}
+                onClick={handleLogout}
                 className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
               >
                 Logout

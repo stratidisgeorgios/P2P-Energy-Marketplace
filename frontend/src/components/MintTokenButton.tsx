@@ -56,13 +56,16 @@ export const MintTokenButton: React.FC = () => {
 
     setIsLoading(true)
     try {
-      console.log(`💰 Minting ${amount} test kWh...`)
+      console.log(`💰 Minting ${amount} test NRG...`)
       await BlockchainService.setProvider(provider)
       const amountWei = BlockchainService.toWei(amount)
       const txHash = await BlockchainService.mintTestEnergy(amountWei)
       
       console.log(`✅ Test tokens minted! Tx: ${txHash}`)
-      alert(`✅ Successfully minted ${amount} test kWh!\n\nTx: ${txHash}`)
+      alert(`✅ Successfully minted ${amount} test NRG!\n\nTx: ${txHash}`)
+      
+      // Auto-add token to MetaMask
+      await BlockchainService.addTokenToMetaMask()
       
       // Trigger balance refresh
       triggerRefresh()
@@ -105,20 +108,28 @@ export const MintTokenButton: React.FC = () => {
 
       <div className="flex gap-2">
         {!showForm ? (
-          <button
-            onClick={() => setShowForm(true)}
-            disabled={isProducer === false}
-            className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-sm font-medium"
-          >
-            💰 Get Test kWh
-          </button>
+          <>
+            <button
+              onClick={() => setShowForm(true)}
+              disabled={isProducer === false}
+              className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition text-sm font-medium"
+            >
+              💰 Get Test NRG
+            </button>
+            <button
+              onClick={() => BlockchainService.addTokenToMetaMask()}
+              className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition text-sm font-medium"
+            >
+              🦊 Add to MetaMask
+            </button>
+          </>
         ) : (
           <div className="flex gap-2">
             <input
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="Amount (kWh)"
+              placeholder="Amount (NRG)"
               min="1"
               className="px-3 py-2 border rounded text-sm"
               disabled={isLoading || isProducer === false}

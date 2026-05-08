@@ -1,8 +1,14 @@
 /// <reference types="vite/client" />
 import { BrowserProvider, Contract, ethers } from 'ethers'
 
-// Minimal ABIs for contract interaction (NO EVENTS - they cause warnings and don't work with signers)
-// Minimal ABIs for contract interaction (NO EVENTS - they cause warnings and don't work with signers)
+// Type declaration for MetaMask/window.ethereum
+declare global {
+  interface Window {
+    ethereum?: any
+  }
+}
+
+// Minimal ABIs for contract interaction
 const CONTRACTS: { [key: string]: string[] } = {
   UserRegistry: [
     'function registerUser(string _name, string _role)',
@@ -11,6 +17,8 @@ const CONTRACTS: { [key: string]: string[] } = {
     'function isProducer(address user) public view returns (bool)',
     'function isConsumer(address user) public view returns (bool)',
     'function getUser(address user) public view returns (tuple(address wallet, string name, uint256 registrationTime, bool isProducer, bool isConsumer, bool isActive, string metadata))',
+    'event SmartMeterCreated(string indexed meterId, address indexed owner, uint256 timestamp)',
+    'event UserRegistered(address indexed userAddress, string name, uint8 role, uint256 timestamp)',
   ],
   EnergyToken: [
     'function balanceOf(address account) public view returns (uint256)',
@@ -68,6 +76,7 @@ class BlockchainService {
   private contracts: { [key: string]: Contract } = {}
   private addresses = getContractAddresses()
   private provider: BrowserProvider | null = null
+  private signer: any = null
 
   /**
    * Initialize provider and contracts
@@ -76,14 +85,14 @@ class BlockchainService {
     this.provider = provider
     
     // Create contract instances with signer for transactions
-    const signer = await provider.getSigner()
+    this.signer = await provider.getSigner()
     
     const contractNames = Object.keys(CONTRACTS)
     for (const name of contractNames) {
       const address = this.addresses[name]
       const abi = CONTRACTS[name]
       if (address && abi) {
-        this.contracts[name] = new Contract(address, abi, signer)
+        this.contracts[name] = new Contract(address, abi, this.signer)
         console.log(`📋 ${name}: ${address}`)
       }
     }
@@ -95,20 +104,53 @@ class BlockchainService {
    * ===== USER REGISTRY FUNCTIONS =====
    */
 
-  async registerUser(username: string, role: 'PRODUCER' | 'CONSUMER' | 'BOTH'): Promise<string> {
+  async registerUser(username: string, role: 'PRODUCER' | 'CONSUMER' | 'BOTH'): Promise<{ txHash: string; meterId?: string }> {
     if (!this.contracts.UserRegistry) throw new Error('UserRegistry contract not initialized')
+    if (!this.signer) throw new Error('Signer not initialized')
     
     try {
       console.log(`🔗 Registering user: ${username} as ${role}...`)
       console.log(`📞 Calling UserRegistry.registerUser("${username}", "${role}")`)
       
+      // If registering as CONSUMER, set up event listener for SmartMeterCreated
+      let meterCreatedPromise: Promise<string | undefined> = Promise.resolve(undefined)
+      
+      if (role === 'CONSUMER' || role === 'BOTH') {
+        const signerAddress = await this.signer.getAddress()
+        meterCreatedPromise = new Promise((resolve) => {
+          const timeout = setTimeout(() => {
+            console.warn('⚠️  Smart meter creation event not received (timeout)')
+            resolve(undefined)
+          }, 30000) // 30 second timeout
+          
+          // Listen for SmartMeterCreated event (filter by owner = current account)
+          const filter = this.contracts.UserRegistry?.filters?.SmartMeterCreated?.()
+          if (filter) {
+            const listener = (meterId: string, owner: string) => {
+              if (owner.toLowerCase() === signerAddress.toLowerCase()) {
+                clearTimeout(timeout)
+                console.log(`✅ Smart meter created: ${meterId}`)
+                this.contracts.UserRegistry?.removeListener('SmartMeterCreated', listener)
+                resolve(meterId)
+              }
+            }
+            this.contracts.UserRegistry?.on('SmartMeterCreated', listener)
+          } else {
+            resolve(undefined)
+          }
+        })
+      }
+      
       const tx = await this.contracts.UserRegistry.registerUser(username, role)
       console.log(`📝 Tx sent: ${tx.hash}`)
       
-      const receipt = await tx.wait()
+      await tx.wait()
       console.log(`✅ User registered: ${tx.hash}`)
-      console.log(`📄 Receipt:`, receipt)
-      return tx.hash
+      
+      // Wait for meter created event if registering as consumer
+      const meterId = await meterCreatedPromise
+      
+      return { txHash: tx.hash, meterId }
     } catch (error: any) {
       console.error('❌ Registration failed:')
       console.error('  Error message:', error.message)
@@ -385,104 +427,6 @@ class BlockchainService {
     }
   }
 
-  async debugUserStatus(userAddress: string): Promise<void> {
-    if (!this.contracts.UserRegistry) throw new Error('UserRegistry contract not initialized')
-    try {
-      console.log(`\n=== DEBUG: User Status for ${userAddress} ===`)
-      
-      const isActive = await this.contracts.UserRegistry.isUserActive(userAddress)
-      console.log(`✅ isUserActive: ${isActive}`)
-      
-      const isProducer = await this.contracts.UserRegistry.isProducer(userAddress)
-      console.log(`✅ isProducer: ${isProducer}`)
-      
-      const isConsumer = await this.contracts.UserRegistry.isConsumer(userAddress)
-      console.log(`✅ isConsumer: ${isConsumer}`)
-      
-      if (!isActive) {
-        console.error(`❌ User not active!`)
-      }
-      if (!isConsumer) {
-        console.error(`❌ User is not a CONSUMER! Cannot create BUY offers.`)
-      }
-      
-      console.log(`=== END DEBUG ===\n`)
-    } catch (error: any) {
-      console.error('Debug failed:', error.message)
-    }
-  }
-
-  async debugBuyOfferCreation(energyAmount: string, pricePerUnit: string, userAddress: string): Promise<void> {
-    if (!this.contracts.EnergyMarketplace || !this.contracts.UserRegistry) {
-      throw new Error('Contracts not initialized')
-    }
-    
-    try {
-      const totalPrice = (BigInt(energyAmount) * BigInt(pricePerUnit)).toString()
-      
-      console.log(`\n=== PRE-CHECK: BUY Offer Creation ===`)
-      console.log(`User: ${userAddress}`)
-      console.log(`Energy Amount: ${energyAmount}`)
-      console.log(`Price Per Unit: ${pricePerUnit}`)
-      console.log(`Total Price: ${totalPrice}`)
-      
-      // Check 1: Energy amount > 0
-      const energyAmountBN = BigInt(energyAmount)
-      if (energyAmountBN <= 0n) {
-        console.error(`❌ FAIL: Energy amount must be > 0`)
-        return
-      }
-      console.log(`✅ CHECK 1: Energy amount > 0`)
-      
-      // Check 2: Price per unit > 0
-      const pricePerUnitBN = BigInt(pricePerUnit)
-      if (pricePerUnitBN <= 0n) {
-        console.error(`❌ FAIL: Price per unit must be > 0`)
-        return
-      }
-      console.log(`✅ CHECK 2: Price per unit > 0`)
-      
-      // Check 3: User is active
-      const isActive = await this.contracts.UserRegistry.isUserActive(userAddress)
-      console.log(`✅ CHECK 3: User is active = ${isActive}`)
-      if (!isActive) {
-        console.error(`❌ FAIL: User not active`)
-        return
-      }
-      
-      // Check 4: User is consumer
-      const isConsumer = await this.contracts.UserRegistry.isConsumer(userAddress)
-      console.log(`✅ CHECK 4: User is consumer = ${isConsumer}`)
-      if (!isConsumer) {
-        console.error(`❌ FAIL: User is not a consumer`)
-        return
-      }
-      
-      // Check 5: Try to estimate gas (this will catch contract logic errors)
-      console.log(`\n📊 Attempting to estimate gas for createOffer...`)
-      try {
-        const gasEstimate = await this.contracts.EnergyMarketplace.createOffer.estimateGas(
-          1, // offerType = BUY
-          energyAmountBN,
-          pricePerUnitBN,
-          { value: BigInt(totalPrice), from: userAddress }
-        )
-        console.log(`✅ CHECK 5: Gas estimation succeeded = ${gasEstimate.toString()}`)
-      } catch (gasError: any) {
-        console.error(`❌ FAIL: Gas estimation failed:`, gasError.message)
-        console.error(`Full error:`, gasError)
-        return
-      }
-      
-      console.log(`\n✅ ALL CHECKS PASSED - Ready to create BUY offer`)
-      console.log(`=== END PRE-CHECK ===\n`)
-    } catch (error: any) {
-      console.error('Pre-check failed:', error.message)
-    }
-  }
-
-
-
 
 
   async getNextOfferId(): Promise<number> {
@@ -729,6 +673,43 @@ class BlockchainService {
     } catch (error: any) {
       console.error('❌ Oracle cancel trade failed:', error.message)
       throw new Error(`Failed to cancel trade: ${error.message}`)
+    }
+  }
+
+  /**
+   * Add EnergyToken to MetaMask wallet
+   */
+  async addTokenToMetaMask(): Promise<boolean> {
+    const tokenAddress = this.addresses.EnergyToken
+    
+    if (!tokenAddress || !window.ethereum) {
+      console.error('❌ Token address or MetaMask not available')
+      return false
+    }
+
+    try {
+      const imageUrl = `${window.location.origin}/nrgimage.png`
+      
+      const result = await window.ethereum.request({
+        method: 'wallet_watchAsset',
+        params: {
+          type: 'ERC20',
+          options: {
+            address: tokenAddress,
+            symbol: 'NRG',
+            decimals: 18,
+            image: imageUrl,
+          },
+        },
+      })
+      
+      if (result) {
+        console.log('✅ Energy token added to MetaMask')
+      }
+      return result as boolean
+    } catch (error: any) {
+      console.error('❌ Failed to add token:', error.message)
+      return false
     }
   }
 }

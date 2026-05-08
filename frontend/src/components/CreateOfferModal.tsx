@@ -126,7 +126,7 @@ export const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ isOpen, onCl
     if (userRole === 'PRODUCER') {
       const availableBalance = parseFloat(tokenBalance)
       if (quantity > availableBalance) {
-        setError(`You only have ${availableBalance} kWh tokens. You can't offer more than you have.`)
+        setError(`You only have ${availableBalance} NRG tokens. You can't offer more than you have.`)
         return
       }
     }
@@ -142,7 +142,7 @@ export const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ isOpen, onCl
       const pricePerUnit = parseFloat(formData.pricePerUnit)
 
       console.log('🔗 Creating offer on blockchain...')
-      console.log(`   Quantity: ${quantity} kWh`)
+      console.log(`   Quantity: ${quantity} NRG`)
       console.log(`   Price: $${pricePerUnit} per unit`)
 
       // Calculate total in USD first
@@ -162,22 +162,12 @@ export const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ isOpen, onCl
       // Initialize blockchain service with current provider
       await BlockchainService.setProvider(provider)
       
-      // DEBUG: Check user status before creating offer
-      console.log('🔍 Checking user status before creating offer...')
-      await BlockchainService.debugUserStatus(account)
-
       // Determine offer type based on user role
       // 0 = SELL (producers), 1 = BUY (consumers)
       const offerType = userRole === 'PRODUCER' ? 0 : 1
 
       // Calculate total price in wei for escrow (for BUY offers)
       const totalPriceWei = (BigInt(quantityStr) * BigInt(priceWei)).toString()
-
-      // PRE-CHECK: For BUY offers, run comprehensive pre-check before attempting transaction
-      if (offerType === 1) {
-        console.log('🔍 Running pre-check for BUY offer...')
-        await BlockchainService.debugBuyOfferCreation(quantityStr, priceWei, account)
-      }
 
       // Call blockchain to create offer with offerType parameter
       const txHash = await BlockchainService.createOffer(offerType, quantityStr, priceWei, totalPriceWei)
@@ -255,9 +245,9 @@ export const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ isOpen, onCl
           {userRole === 'PRODUCER' && (
             <div className="p-4 bg-purple-50 rounded border border-purple-200">
               <p className="text-sm font-medium text-purple-900">
-                💰 Available Tokens: <span className="text-lg font-bold">{isLoadingBalance ? '⏳ Loading...' : tokenBalance} kWh</span>
+                💰 Available Tokens: <span className="text-lg font-bold">{isLoadingBalance ? '⏳ Loading...' : tokenBalance} NRG</span>
               </p>
-              <p className="text-xs text-purple-700 mt-1">You can only offer tokens you own. Mint more using "💰 Get Test kWh" in the header.</p>
+              <p className="text-xs text-purple-700 mt-1">You can only offer tokens you own. Mint more using "💰 Get Test NRG" in the header.</p>
             </div>
           )}
 
@@ -277,7 +267,7 @@ export const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ isOpen, onCl
           <div>
             <div className="flex justify-between items-center mb-2">
               <label className="block text-sm font-bold text-gray-700">
-                {userRole === 'PRODUCER' ? '📊 Tokens to Sell (kWh) *' : '📊 Energy Amount Needed (kWh) *'}
+                {userRole === 'PRODUCER' ? '📊 Tokens to Sell (NRG) *' : '📊 Energy Amount Needed (NRG) *'}
               </label>
               {userRole === 'PRODUCER' && tokenBalance !== '0' && (
                 <button
@@ -306,8 +296,8 @@ export const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ isOpen, onCl
             <p className="text-xs text-gray-500 mt-1">
               {userRole === 'PRODUCER' 
                 ? parseFloat(tokenBalance) === 0 
-                  ? '⚠️ You have no tokens. Mint some first using "💰 Get Test kWh"' 
-                  : `Maximum: ${tokenBalance} kWh (your available balance)`
+                  ? '⚠️ You have no tokens. Mint some first using "💰 Get Test NRG"' 
+                  : `Maximum: ${tokenBalance} NRG (your available balance)`
                 : 'Tell buyers how much energy you\'d like to purchase'}
             </p>
           </div>
@@ -327,7 +317,7 @@ export const CreateOfferModal: React.FC<CreateOfferModalProps> = ({ isOpen, onCl
               required
               disabled={isLoading}
             />
-            <p className="text-xs text-gray-500 mt-1">Price in USD (e.g., 0.25 = 25 cents per kWh)</p>
+            <p className="text-xs text-gray-500 mt-1">Price in USD (e.g., 0.25 = 25 cents per NRG)</p>
           </div>
 
           {/* Energy Source - Producer Only */}

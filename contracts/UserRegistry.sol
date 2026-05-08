@@ -28,9 +28,21 @@ contract UserRegistry is Ownable, AccessControl {
         string metadata; // Additional info (location, capacity, etc.)
     }
 
+    // SmartMeter struct to store consumer meter information
+    struct SmartMeter {
+        string meterId;           // Format: consumer_{walletAddress}
+        address owner;            // Consumer wallet address
+        address meterPublicKey;   // Public key for verification
+        bool verified;            // Meter verification status
+        uint256 currentReading;   // Current energy reading (in wei, scaled by 10^18)
+        uint256 createdAt;        // Timestamp of meter creation
+    }
+
     // Mappings for efficient lookup
     mapping(address => User) public users;
     mapping(address => bool) public isRegistered;
+    mapping(address => SmartMeter) public consumerMeters;  // consumer address => meter
+    mapping(string => address) public meterIdToAddress;    // meterId => consumer address
     address[] public registeredUsers;
 
     // Events
@@ -48,6 +60,17 @@ contract UserRegistry is Ownable, AccessControl {
     event UserStatusChanged(
         address indexed userAddress,
         bool isActive,
+        uint256 timestamp
+    );
+    event SmartMeterCreated(
+        string indexed meterId,
+        address indexed owner,
+        uint256 timestamp
+    );
+    event MeterReadingUpdated(
+        string indexed meterId,
+        address indexed owner,
+        uint256 newReading,
         uint256 timestamp
     );
 
@@ -98,6 +121,8 @@ contract UserRegistry is Ownable, AccessControl {
             _grantRole(PRODUCER_ROLE, msg.sender);
         } else {
             _grantRole(CONSUMER_ROLE, msg.sender);
+            // Create smart meter for consumer
+            _createSmartMeter(msg.sender);
         }
 
         emit UserRegistered(
@@ -139,6 +164,8 @@ contract UserRegistry is Ownable, AccessControl {
             _grantRole(PRODUCER_ROLE, _userAddress);
         } else {
             _grantRole(CONSUMER_ROLE, _userAddress);
+            // Create smart meter for consumer
+            _createSmartMeter(_userAddress);
         }
 
         emit UserRegistered(
@@ -282,5 +309,118 @@ contract UserRegistry is Ownable, AccessControl {
         user.isActive = false;
         
         emit UserStatusChanged(msg.sender, false, block.timestamp);
+    }
+
+    /**
+     * @dev Create a smart meter for a consumer (internal, called during registration)
+     * @param _consumerAddress Consumer wallet address
+     */
+    function _createSmartMeter(address _consumerAddress) internal {
+        require(_consumerAddress != address(0), "Invalid address");
+        require(consumerMeters[_consumerAddress].owner == address(0), "Meter already exists");
+        
+        string memory meterId = _generateMeterId(_consumerAddress);
+        
+        SmartMeter memory newMeter = SmartMeter({
+            meterId: meterId,
+            owner: _consumerAddress,
+            meterPublicKey: _consumerAddress,  // Use wallet address as public key
+            verified: true,
+            currentReading: 0,
+            createdAt: block.timestamp
+        });
+        
+        consumerMeters[_consumerAddress] = newMeter;
+        meterIdToAddress[meterId] = _consumerAddress;
+        
+        emit SmartMeterCreated(meterId, _consumerAddress, block.timestamp);
+    }
+
+    /**
+     * @dev Update consumer meter reading when they receive energy
+     * Called by EnergyMarketplace when trade is accepted or energy transferred
+     * @param _consumerAddress Consumer wallet address
+     * @param _energyAmount Energy amount in wei (scaled by 10^18)
+     */
+    function updateMeterReading(address _consumerAddress, uint256 _energyAmount)
+        external
+    {
+        require(_consumerAddress != address(0), "Invalid address");
+        require(consumerMeters[_consumerAddress].owner != address(0), "Meter does not exist");
+        require(_energyAmount > 0, "Energy amount must be positive");
+        
+        SmartMeter storage meter = consumerMeters[_consumerAddress];
+        meter.currentReading += _energyAmount;
+        
+        emit MeterReadingUpdated(
+            meter.meterId,
+            _consumerAddress,
+            meter.currentReading,
+            block.timestamp
+        );
+    }
+
+    /**
+     * @dev Get consumer's smart meter information
+     * @param _consumerAddress Consumer wallet address
+     * @return SmartMeter struct
+     */
+    function getConsumerMeter(address _consumerAddress)
+        external
+        view
+        returns (SmartMeter memory)
+    {
+        require(consumerMeters[_consumerAddress].owner != address(0), "Meter does not exist");
+        return consumerMeters[_consumerAddress];
+    }
+
+    /**
+     * @dev Get consumer address from meter ID
+     * @param _meterId Meter ID (consumer_{address})
+     * @return address Consumer address
+     */
+    function getConsumerByMeterId(string memory _meterId)
+        external
+        view
+        returns (address)
+    {
+        return meterIdToAddress[_meterId];
+    }
+
+    /**
+     * @dev Generate meter ID from consumer address
+     * Format: consumer_{hexAddress}
+     */
+    function _generateMeterId(address _consumerAddress)
+        internal
+        pure
+        returns (string memory)
+    {
+        return string(
+            abi.encodePacked(
+                "consumer_",
+                addressToString(_consumerAddress)
+            )
+        );
+    }
+
+    /**
+     * @dev Convert address to string
+     */
+    function addressToString(address _addr)
+        internal
+        pure
+        returns (string memory)
+    {
+        bytes32 _bytes = bytes32(uint256(uint160(_addr)));
+        bytes memory HEX = "0123456789abcdef";
+        bytes memory result = new bytes(42);
+        result[0] = '0';
+        result[1] = 'x';
+        for (uint256 i = 0; i < 20; i++) {
+            result[2 + i * 2] = HEX[uint8(_bytes[i + 12] >> 4)];
+            result[3 + i * 2] = HEX[uint8(_bytes[i + 12] & 0x0f)];
+        }
+        return string(result);
     }
 }

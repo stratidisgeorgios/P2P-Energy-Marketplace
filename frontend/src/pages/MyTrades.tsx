@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthContext } from '../context/AuthContext'
-import { useRefresh } from '../context/RefreshContext'
 import BlockchainService from '../services/ContractService'
 import { CertificateCard } from '../components/CertificateCard'
 import { formatEther } from 'ethers'
@@ -37,7 +36,6 @@ interface Certificate {
 export const MyTrades: React.FC = () => {
   const navigate = useNavigate()
   const { isAuthenticated, user } = useAuthContext()
-  const { triggerRefresh } = useRefresh()
   const [trades, setTrades] = useState<Trade[]>([])
   const [certificates, setCertificates] = useState<Map<number, Certificate>>(new Map())
   const [loading, setLoading] = useState(true)
@@ -210,7 +208,7 @@ export const MyTrades: React.FC = () => {
                   <div className="grid grid-cols-3 gap-4">
                     <div className="bg-blue-50 p-3 rounded">
                       <p className="text-sm text-gray-600">Energy Amount</p>
-                      <p className="text-lg font-bold text-blue-900">{trade.energyAmount} kWh</p>
+                      <p className="text-lg font-bold text-blue-900">{trade.energyAmount} NRG</p>
                     </div>
                     <div className="bg-green-50 p-3 rounded">
                       <p className="text-sm text-gray-600">Total Price</p>
