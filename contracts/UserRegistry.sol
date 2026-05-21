@@ -302,6 +302,8 @@ contract UserRegistry is Ownable, AccessControl {
             _revokeRole(PRODUCER_ROLE, msg.sender);
         } else if (user.role == RoleType.CONSUMER) {
             _revokeRole(CONSUMER_ROLE, msg.sender);
+            // Delete smart meter for consumer
+            _deleteSmartMeter(msg.sender);
         }
         
         // Mark as deregistered
@@ -334,6 +336,20 @@ contract UserRegistry is Ownable, AccessControl {
         meterIdToAddress[meterId] = _consumerAddress;
         
         emit SmartMeterCreated(meterId, _consumerAddress, block.timestamp);
+    }
+
+    /**
+     * @dev Delete a smart meter (internal, called during consumer deregistration)
+     * @param _consumerAddress Consumer wallet address
+     */
+    function _deleteSmartMeter(address _consumerAddress) internal {
+        require(_consumerAddress != address(0), "Invalid address");
+        SmartMeter storage meter = consumerMeters[_consumerAddress];
+        require(meter.owner != address(0), "Meter does not exist");
+        
+        string memory meterId = meter.meterId;
+        delete consumerMeters[_consumerAddress];
+        delete meterIdToAddress[meterId];
     }
 
     /**
